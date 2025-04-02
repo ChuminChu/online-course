@@ -1,5 +1,6 @@
 package onlinecourse.lectureEnrollment;
 
+import onlinecourse.LoginUtils.LoginMember;
 import onlinecourse.lectureEnrollment.dto.LectureEnrollmentRequest;
 import onlinecourse.lectureEnrollment.dto.LectureEnrollmentResponse;
 import org.springframework.stereotype.Controller;
@@ -18,7 +19,7 @@ public class LectureEnrollmentController {
 
     //수강신청
     @PostMapping("/lectureEnrollments")
-    public LectureEnrollmentResponse select(@RequestBody LectureEnrollmentRequest request){
-        return lectureEnrollmentService.select(request);
+    public LectureEnrollmentResponse select(@LoginMember String email, @RequestBody LectureEnrollmentRequest request){
+        return lectureEnrollmentService.select(email, request);
     }
 }

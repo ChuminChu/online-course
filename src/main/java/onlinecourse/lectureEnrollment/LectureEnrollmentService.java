@@ -9,7 +9,6 @@ import onlinecourse.student.StudentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.NoSuchElementException;
 
 @Service
@@ -27,7 +26,10 @@ public class LectureEnrollmentService {
     }
 
     @Transactional
-    public LectureEnrollmentResponse select(LectureEnrollmentRequest request) {
+    public LectureEnrollmentResponse select(String email, LectureEnrollmentRequest request) {
+        Student student1 = studentRepository.findByEmail(email)
+                .orElseThrow(() -> new NoSuchElementException("로그인 후 이용가능한 서비스입니다."));
+
         Lecture lecture = lectureRepository.findByIdAndDeletedFalse(request.lectureId())
                 .orElseThrow(() -> new NoSuchElementException("찾는 강의가 없습니다."));
 

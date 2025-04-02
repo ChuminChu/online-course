@@ -1,7 +1,5 @@
 package onlinecourse.student;
 
-import onlinecourse.lecture.LectureRepository;
-import onlinecourse.lectureEnrollment.LectureEnrollmentRepository;
 import onlinecourse.student.dto.SignUpRequest;
 import onlinecourse.student.dto.SignUpResponse;
 import org.springframework.stereotype.Service;
@@ -25,10 +23,13 @@ public class StudentService {
         return new SignUpResponse(
                 student.getId(),
                 student.getNickName(),
-                student.getEmail());
+                student.getemail());
     }
 
-    public void delete(Long memberId) {
+    public void delete(String email, Long memberId) {
+        studentRepository.findByEmail(email)
+                .orElseThrow(()-> new NoSuchElementException("로그인 후 이용 가능한 서비스입니다."));
+
         Student student = studentRepository.findById(memberId)
                 .orElseThrow(() -> new NoSuchElementException("등록된 Id가 없습니다."));
 

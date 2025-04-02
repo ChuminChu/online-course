@@ -1,7 +1,9 @@
 package onlinecourse.student;
 
+import onlinecourse.LoginUtils.LoginMember;
 import onlinecourse.student.dto.SignUpRequest;
 import onlinecourse.student.dto.SignUpResponse;
+import org.springframework.data.querydsl.binding.QuerydslPredicate;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,7 +22,7 @@ public class StudentRestController {
     }
 
     @DeleteMapping("/members/{memberId}")
-    public void delete(@PathVariable Long memberId){
-        studentService.delete(memberId);
+    public void delete(@LoginMember String email, @PathVariable Long memberId){
+        studentService.delete(email, memberId);
     }
 }

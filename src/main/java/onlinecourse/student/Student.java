@@ -15,7 +15,7 @@ public class Student {
     private String nickName;
 
     @Column(nullable = false)
-    private String Email;
+    private String email;
 
     private boolean deleted = false;
 
@@ -25,7 +25,7 @@ public class Student {
 
     public Student(String nickName, String email) {
         this.nickName = nickName;
-        Email = email;
+        this.email = email;
 
     }
 
@@ -38,8 +38,8 @@ public class Student {
     }
 
 
-    public String getEmail() {
-        return Email;
+    public String getemail() {
+        return email;
     }
 
     public boolean isDeleted() {
