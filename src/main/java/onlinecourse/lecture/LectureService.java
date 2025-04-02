@@ -3,6 +3,8 @@ package onlinecourse.lecture;
 import onlinecourse.Category;
 import onlinecourse.lecture.dto.*;
 import onlinecourse.lecture.dto.StudentEnrollmentResponse;
+import onlinecourse.login.Admin;
+import onlinecourse.login.AdminRepository;
 import onlinecourse.teacher.Teacher;
 import onlinecourse.teacher.TeacherRepository;
 import org.springframework.stereotype.Service;
@@ -19,11 +21,13 @@ public class LectureService {
     private final LectureRepository lectureRepository;
     private final LectureQueryRepository lectureQueryRepository;
     private final TeacherRepository teacherRepository;
+    private final AdminRepository adminRepository;
 
-    public LectureService(LectureRepository lectureRepository, LectureQueryRepository lectureQueryRepository, TeacherRepository teacherRepository) {
+    public LectureService(LectureRepository lectureRepository, LectureQueryRepository lectureQueryRepository, TeacherRepository teacherRepository, AdminRepository adminRepository) {
         this.lectureRepository = lectureRepository;
         this.lectureQueryRepository = lectureQueryRepository;
         this.teacherRepository = teacherRepository;
+        this.adminRepository = adminRepository;
     }
 
     public List<LectureListResponse> findAll(String title, String teacherName, Category category, Pageable pageable) {
@@ -67,12 +71,12 @@ public class LectureService {
                 lecture.getUpdateTime());
     }
 
-    public LectureResponse save(LectureCreateRequest lectureCreateRequest) {
+    public LectureResponse save(String loginId, LectureCreateRequest lectureCreateRequest) {
+        Admin admin = adminRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new NoSuchElementException("관리자만 할 수 있습니다."));
+
         Teacher teacher = teacherRepository.findById(lectureCreateRequest.teacherId())
                 .orElseThrow(() -> new NoSuchElementException("강사가 없습니다."));
-
-      /*  Lecture lecture = lectureRepository.findById(lectureCreateRequest.lectureId);
-        lecture.getTeacher().getId()*/
 
         Lecture lecture = lectureRepository.save(new Lecture(
                 lectureCreateRequest.title(),
@@ -95,7 +99,10 @@ public class LectureService {
     }
 
     @Transactional
-    public LectureResponse update(Long lectureId, LectureUpdateRequest lectureUpdateRequest) {
+    public LectureResponse update(String loginId, Long lectureId, LectureUpdateRequest lectureUpdateRequest) {
+        Admin admin = adminRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new NoSuchElementException("관리자 권한입니다."));
+
         Lecture lecture = lectureRepository.findByIdAndDeletedFalse(lectureId)
                 .orElseThrow(() -> new NoSuchElementException("찾으시는 강의가 없습니다."));
 
@@ -120,7 +127,10 @@ public class LectureService {
     }
 
     @Transactional
-    public void delete(Long lectureId) {
+    public void delete(String loginId, Long lectureId) {
+        adminRepository.findByLoginId(loginId)
+                .orElseThrow(()-> new NoSuchElementException("관리자 권한입니다."));
+
         Lecture lecture = lectureRepository.findById(lectureId)
                 .orElseThrow(() -> new NoSuchElementException("찾는 강의가 없습니다."));
 
@@ -128,7 +138,10 @@ public class LectureService {
     }
 
     @Transactional
-    public void updatePrivate(Long lectureId) {
+    public void updatePrivate(String loginId, Long lectureId) {
+        adminRepository.findByLoginId(loginId)
+                .orElseThrow(()-> new NoSuchElementException("관리자 권한입니다."));
+
         Lecture lecture = lectureRepository.findById(lectureId)
                 .orElseThrow(() -> new NoSuchElementException("찾는 강의가 없습니다."));
 

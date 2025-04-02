@@ -1,6 +1,7 @@
 package onlinecourse.lecture;
 
 import onlinecourse.Category;
+import onlinecourse.LoginUtils.LoginMember;
 import onlinecourse.lecture.dto.*;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -35,23 +36,24 @@ public class LectureRestController {
     }
 
     @PostMapping("/lectures")
-    public LectureResponse create(@RequestBody LectureCreateRequest lectureCreateRequest){
-        return lectureService.save(lectureCreateRequest);
+    public LectureResponse create(@LoginMember String loginId, @RequestBody LectureCreateRequest lectureCreateRequest){
+        return lectureService.save(loginId, lectureCreateRequest);
     }
 
     @PutMapping("/lectures/{lectureId}")
-    public LectureResponse update(@PathVariable Long lectureId,
+    public LectureResponse update(@LoginMember String loginId,
+                                  @PathVariable Long lectureId,
                                   @RequestBody LectureUpdateRequest lectureUpdateRequest){
-        return lectureService.update(lectureId, lectureUpdateRequest);
+        return lectureService.update(loginId, lectureId, lectureUpdateRequest);
     }
 
     @DeleteMapping("/lectures/{lectureId}")
-    public void delete(@PathVariable Long lectureId){
-        lectureService.delete(lectureId);
+    public void delete(@LoginMember String loginId, @PathVariable Long lectureId){
+        lectureService.delete(loginId, lectureId);
     }
 
     @PatchMapping("/lectures/{lectureId}")
-    public void updatePrivate(@PathVariable Long lectureId){
-        lectureService.updatePrivate(lectureId);
+    public void updatePrivate(@LoginMember String loginId, @PathVariable Long lectureId){
+        lectureService.updatePrivate(loginId, lectureId);
     }
 }
