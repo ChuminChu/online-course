@@ -2,10 +2,15 @@ package onlinecourse.student;
 
 import onlinecourse.Category;
 import onlinecourse.DatabaseCleanup;
+import onlinecourse.LoginUtils.AccessToken;
+import onlinecourse.LoginUtils.JwtProvider;
 import onlinecourse.lecture.dto.LectureCreateRequest;
 import onlinecourse.lecture.dto.LectureResponse;
 import onlinecourse.lectureEnrollment.dto.LectureEnrollmentRequest;
 import onlinecourse.lectureEnrollment.dto.LectureEnrollmentResponse;
+import onlinecourse.login.Admin;
+import onlinecourse.login.AdminRepository;
+import onlinecourse.login.LoginRequest;
 import onlinecourse.student.dto.SignUpRequest;
 import onlinecourse.student.dto.SignUpResponse;
 import onlinecourse.teacher.Teacher;
@@ -17,6 +22,7 @@ import io.restassured.RestAssured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpHeaders;
 
 
 import java.time.LocalDateTime;
@@ -35,7 +41,14 @@ public class StudentTest {
     @Autowired
     TeacherRepository teacherRepository;
 
+    @Autowired
+    AdminRepository adminRepository;
+
+    @Autowired
+    JwtProvider jwtProvider;
+
     Teacher teacher;
+    Admin admin;
 
     @BeforeEach
     void setUp() {
@@ -43,6 +56,8 @@ public class StudentTest {
         databaseCleanup.execute();
         teacher = new Teacher("추민영");
         teacherRepository.save(teacher);
+        admin = new Admin("admin1234", "abcDEF123!");
+        adminRepository.save(admin);
     }
 
     @Test
@@ -81,8 +96,21 @@ public class StudentTest {
                 .extract()
                 .as(SignUpResponse.class);
 
+        AccessToken token = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest("chu@gmail.com", "chuchu"))
+                .when()
+                .post("/students/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
+
         RestAssured
                 .given().log().all()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.token())
                 .pathParam("memberId",student.id())
                 .when()
                 .delete("/members/{memberId}")
@@ -106,9 +134,34 @@ public class StudentTest {
                 .extract()
                 .as(SignUpResponse.class);
 
+        AccessToken token = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest("chu@gmail.com", "chuchu"))
+                .when()
+                .post("/students/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture = RestAssured
                 .given().log().all()
                 .contentType(ContentType.JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.token())
                 .body(new LectureCreateRequest(
                         "자바 배우기",
                         "자바, Spring을 통한 웹 개발 강의입니다.",
@@ -127,9 +180,10 @@ public class StudentTest {
         LectureEnrollmentResponse 수강신청 = RestAssured
                 .given().log().all()
                 .contentType(ContentType.JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.token())
                 .body(new LectureEnrollmentRequest(lecture.id(), student.id()))
                 .when()
-                .post("/lectureEnrollment")
+                .post("/lectureEnrollments")
                 .then().log().all()
                 .statusCode(200)
                 .extract()
@@ -158,9 +212,34 @@ public class StudentTest {
                 .extract()
                 .as(SignUpResponse.class);
 
+        AccessToken token = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest("chu@gmail.com", "chuchu"))
+                .when()
+                .post("/students/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture = RestAssured
                 .given().log().all()
                 .contentType(ContentType.JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.token())
                 .body(new LectureCreateRequest(
                         "자바 배우기",
                         "자바, Spring을 통한 웹 개발 강의입니다.",
@@ -178,6 +257,7 @@ public class StudentTest {
 
         RestAssured
                 .given().log().all()
+                .header(HttpHeaders.AUTHORIZATION,"Bearer " + accessToken.token())
                 .when()
                 .pathParam("lectureId", lecture.id())
                 .delete("/lectures/{lectureId}")
@@ -187,64 +267,11 @@ public class StudentTest {
         RestAssured
                 .given().log().all()
                 .contentType(ContentType.JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.token())
                 .body(new LectureEnrollmentRequest(lecture.id(), student.id()))
                 .when()
-                .post("/lectureEnrollment")
+                .post("/lectureEnrollments")
                 .then().log().all()
                 .statusCode(500);
-    }
-
-    @Test
-    void 존재하지않은_회원_수강신청_실패() {
-        SignUpResponse student = RestAssured
-                .given().log().all()
-                .contentType(ContentType.JSON)
-                .body(new SignUpRequest(
-                        "chu@gmail.com",
-                        "chuchu"
-                ))
-                .when()
-                .post("/members/signup")
-                .then().log().all()
-                .statusCode(200)
-                .extract()
-                .as(SignUpResponse.class);
-
-        LectureResponse lecture = RestAssured
-                .given().log().all()
-                .contentType(ContentType.JSON)
-                .body(new LectureCreateRequest(
-                        "자바 배우기",
-                        "자바, Spring을 통한 웹 개발 강의입니다.",
-                        50000,
-                        Category.Math,
-                        teacher.getId(),
-                        LocalDateTime.now()
-                ))
-                .when()
-                .post("/lectures")
-                .then().log().all()
-                .statusCode(200)
-                .extract()
-                .as(LectureResponse.class);
-
-        RestAssured
-                .given().log().all()
-                .pathParam("memberId",student.id())
-                .when()
-                .delete("/members/{memberId}")
-                .then().log().all()
-                .statusCode(200);
-
-        RestAssured
-                .given().log().all()
-                .contentType(ContentType.JSON)
-                .body(new LectureEnrollmentRequest(lecture.id(), student.id()))
-                .when()
-                .post("/lectureEnrollment")
-                .then().log().all()
-                .statusCode(500);
-
-
     }
 }

@@ -4,9 +4,14 @@ import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import onlinecourse.Category;
 import onlinecourse.DatabaseCleanup;
+import onlinecourse.LoginUtils.AccessToken;
+import onlinecourse.LoginUtils.JwtProvider;
 import onlinecourse.lecture.dto.*;
 import onlinecourse.lectureEnrollment.dto.LectureEnrollmentRequest;
 import onlinecourse.lectureEnrollment.dto.LectureEnrollmentResponse;
+import onlinecourse.login.Admin;
+import onlinecourse.login.AdminRepository;
+import onlinecourse.login.LoginRequest;
 import onlinecourse.student.dto.SignUpRequest;
 import onlinecourse.student.dto.SignUpResponse;
 import onlinecourse.teacher.Teacher;
@@ -16,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpHeaders;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,7 +41,14 @@ public class LectureTest {
     @Autowired
     TeacherRepository teacherRepository;
 
+    @Autowired
+    AdminRepository adminRepository;
+
+    @Autowired
+    JwtProvider jwtProvider;
+
     Teacher teacher;
+    Admin admin;
 
     @BeforeEach
     void setUp() {
@@ -44,13 +57,17 @@ public class LectureTest {
         //save
         teacher = new Teacher("추");
         teacherRepository.save(teacher);
+        admin = new Admin("admin1234", "abcDEF123!");
+        adminRepository.save(admin);
+
     }
 
     //강의 만들기
-    private LectureResponse createLecture(String title, String introduce, int price, Category category, Long teacherId) {
+    private LectureResponse createLecture(String title, String introduce, int price, Category category, Long teacherId, AccessToken accessToken) {
         return RestAssured
                 .given().log().all()
                 .contentType(ContentType.JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.token())
                 .body(new LectureCreateRequest(title,introduce,price,category,teacherId,LocalDateTime.now()))
                 .when()
                 .post("/lectures")
@@ -75,13 +92,14 @@ public class LectureTest {
     }
 
     //수강신청
-    private LectureEnrollmentResponse enrollStudentInLecture(Long lectureId, Long studentId) {
+    private LectureEnrollmentResponse enrollStudentInLecture(Long lectureId, Long studentId, AccessToken accessToken) {
         return RestAssured
                 .given().log().all()
                 .contentType(ContentType.JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.token())
                 .body(new LectureEnrollmentRequest(lectureId, studentId))
                 .when()
-                .post("/lectureEnrollment")
+                .post("/lectureEnrollments")
                 .then().log().all()
                 .statusCode(200)
                 .extract()
@@ -89,9 +107,10 @@ public class LectureTest {
     }
 
     //학생 탈퇴
-    private void deleteStudent(Long studentId) {
+    private void deleteStudent(Long studentId, AccessToken accessToken) {
         RestAssured
                 .given().log().all()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.token())
                 .pathParam("memberId", studentId)
                 .when()
                 .delete("/members/{memberId}")
@@ -113,9 +132,10 @@ public class LectureTest {
     }
 
     //공개로 바꾸기
-    private void updateLectureToPublic(Long lectureId) {
+    private void updateLectureToPublic(Long lectureId, AccessToken accessToken) {
         RestAssured
                 .given().log().all()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.token())
                 .pathParam("lectureId", lectureId)
                 .when()
                 .patch("/lectures/{lectureId}")
@@ -124,10 +144,11 @@ public class LectureTest {
     }
 
     //강의 수정
-    private LectureResponse updateLecture(Long lectureId, String title, String introduce, int price) {
+    private LectureResponse updateLecture(Long lectureId, String title, String introduce, int price, AccessToken accessToken) {
         return RestAssured
                 .given().log().all()
                 .contentType(ContentType.JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.token())
                 .pathParam("lectureId", lectureId)
                 .body(new LectureUpdateRequest(
                         title,
@@ -145,9 +166,10 @@ public class LectureTest {
 
 
     //강의 삭제
-    private void deleteLecture(Long lectureId) {
+    private void deleteLecture(Long lectureId, AccessToken accessToken) {
         RestAssured
                 .given().log().all()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.token())
                 .when()
                 .pathParam("lectureId", lectureId)
                 .delete("/lectures/{lectureId}")
@@ -157,12 +179,26 @@ public class LectureTest {
 
     @Test
     void 강의등록() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture = createLecture(
                 "자바 배우기",
                 "자바, Spring을 통한 웹 개발 강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
         assertThat(lecture.id()).isEqualTo(1);
@@ -172,12 +208,26 @@ public class LectureTest {
 
     @Test
     void 비공개_강의목록조회() throws InterruptedException {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         createLecture(
                 "자바 배우기",
                 "자바, Spring을 통한 웹 개발 강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
         Thread.sleep(1000);
 
@@ -186,7 +236,8 @@ public class LectureTest {
                 "자바, Spring을 통한 웹 개발 실습강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
         Thread.sleep(1000);
 
@@ -195,7 +246,8 @@ public class LectureTest {
                 "과학 강의입니다.",
                 50000,
                 Category.Science,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
         List<LectureListResponse> list = RestAssured
@@ -214,12 +266,26 @@ public class LectureTest {
 
     @Test
     void 공개_강의목록조회() throws InterruptedException {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture1 = createLecture(
                 "자바 배우기",
                 "자바, Spring을 통한 웹 개발 강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
         Thread.sleep(1000);
 
@@ -228,7 +294,8 @@ public class LectureTest {
                 "자바, Spring을 통한 웹 개발 실습강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
         Thread.sleep(1000);
 
@@ -237,11 +304,12 @@ public class LectureTest {
                 "과학 강의입니다.",
                 50000,
                 Category.Science,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
-        updateLectureToPublic(lecture1.id());
-        updateLectureToPublic(lecture2.id());
+        updateLectureToPublic(lecture1.id(),accessToken);
+        updateLectureToPublic(lecture2.id(),accessToken);
 
         List<LectureListResponse> list = RestAssured
                 .given().log().all()
@@ -259,17 +327,43 @@ public class LectureTest {
 
     @Test
     void 비공개_강의상세조회() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture1 = createLecture(
                 "자바 배우기",
                 "자바, Spring을 통한 웹 개발 강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
         SignUpResponse student = signUpStudent("chu@gmail.com", "chuchu");
 
-        LectureEnrollmentResponse 수강신청 = enrollStudentInLecture(lecture1.id(), student.id());
+        AccessToken token = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest("chu@gmail.com", "chuchu"))
+                .when()
+                .post("/students/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
+
+        LectureEnrollmentResponse 수강신청 = enrollStudentInLecture(lecture1.id(), student.id(), token);
 
         LectureDetailResponse lectureDetails = getLectureDetails(lecture1.id());
 
@@ -283,19 +377,34 @@ public class LectureTest {
 
     @Test
     void 강의수정() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture1 = createLecture(
                 "자바 배우기",
                 "자바, Spring을 통한 웹 개발 강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
         LectureResponse 수정된강의 = updateLecture(
                 lecture1.id(),
                 "수정된 이름",
                 "수정된 소개",
-                1000
+                1000,
+                accessToken
         );
 
         LectureDetailResponse lectureId = getLectureDetails(수정된강의.id());
@@ -307,50 +416,80 @@ public class LectureTest {
 
     @Test
     void 강의삭제() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture1 = createLecture(
                 "자바 배우기",
                 "자바, Spring을 통한 웹 개발 강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
-        deleteLecture(lecture1.id());
+        deleteLecture(lecture1.id(),accessToken);
     }
 
 
     @Test
     void 공개된_삭제된_강의목록_빼고_조회() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture1 = createLecture(
                 "자바 배우기",
                 "자바, Spring을 통한 웹 개발 강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
-        updateLectureToPublic(lecture1.id());
+        updateLectureToPublic(lecture1.id(),accessToken);
 
         LectureResponse lecture2 = createLecture(
                 "자바 응용하기",
                 "자바, Spring을 통한 웹 개발 실습강의입니다.",
                 50000,
                 Category.Math,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
-        updateLectureToPublic(lecture2.id());
+        updateLectureToPublic(lecture2.id(),accessToken);
 
         LectureResponse lecture3 = createLecture(
                 "과학 배우기",
                 "과학 강의입니다.",
                 50000,
                 Category.Science,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
-        updateLectureToPublic(lecture3.id());
+        updateLectureToPublic(lecture3.id(),accessToken);
 
-        deleteLecture(lecture1.id());
+        deleteLecture(lecture1.id(),accessToken);
 
         List<LectureListResponse> list = RestAssured
                 .given().log().all()
@@ -367,15 +506,29 @@ public class LectureTest {
 
     @Test
     void 삭제된_강의상세조회x() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture = createLecture(
                 "과학 배우기",
                 "과학 강의입니다.",
                 50000,
                 Category.Science,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
-        deleteLecture(lecture.id());
+        deleteLecture(lecture.id(),accessToken);
 
         RestAssured
                 .given().log().all()
@@ -388,15 +541,29 @@ public class LectureTest {
 
     @Test
     void 삭제된_강의목록_수정x() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture = createLecture(
                 "과학 배우기",
                 "과학 강의입니다.",
                 50000,
                 Category.Science,
-                teacher.getId()
+                teacher.getId(),
+                accessToken
         );
 
-        deleteLecture(lecture.id());
+        deleteLecture(lecture.id(),accessToken);
 
         RestAssured
                 .given().log().all()
@@ -416,24 +583,37 @@ public class LectureTest {
 
     @Test
     void 공개된_강의_제목_검색() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture1 = createLecture(
                 "자바 배우기", "자바, Spring을 통한 웹 개발 강의입니다.",
-                50000, Category.Math, teacher.getId()
+                50000, Category.Math, teacher.getId(),accessToken
         );
 
         LectureResponse lecture2 = createLecture(
                 "자바 응용하기", "자바, Spring을 통한 웹 개발 실습강의입니다.",
-                50000, Category.Math, teacher.getId()
+                50000, Category.Math, teacher.getId(),accessToken
         );
 
         LectureResponse lecture3 = createLecture(
                 "과학 배우기", "과학 강의입니다.",
-                50000, Category.Science, teacher.getId()
+                50000, Category.Science, teacher.getId(),accessToken
         );
 
-        updateLectureToPublic(lecture1.id());
-        updateLectureToPublic(lecture2.id());
-        updateLectureToPublic(lecture3.id());
+        updateLectureToPublic(lecture1.id(),accessToken);
+        updateLectureToPublic(lecture2.id(),accessToken);
+        updateLectureToPublic(lecture3.id(),accessToken);
 
         List<LectureListResponse> list = RestAssured
                 .given().log().all()
@@ -466,24 +646,37 @@ public class LectureTest {
 
     @Test
     void 검색_추가로_카테고리_필터가능() {
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+
         LectureResponse lecture1 = createLecture(
                 "자바 배우기", "자바, Spring을 통한 웹 개발 강의입니다.",
-                50000, Category.Math, teacher.getId()
+                50000, Category.Math, teacher.getId(),accessToken
         );
 
         LectureResponse lecture2 = createLecture(
                 "자바 응용하기", "자바, Spring을 통한 웹 개발 실습강의입니다.",
-                50000, Category.Math, teacher.getId()
+                50000, Category.Math, teacher.getId(),accessToken
         );
 
         LectureResponse lecture3 = createLecture(
                 "과학 배우기", "과학 강의입니다.",
-                50000, Category.Science, teacher.getId()
+                50000, Category.Science, teacher.getId(),accessToken
         );
 
-        updateLectureToPublic(lecture1.id());
-        updateLectureToPublic(lecture2.id());
-        updateLectureToPublic(lecture3.id());
+        updateLectureToPublic(lecture1.id(),accessToken);
+        updateLectureToPublic(lecture2.id(),accessToken);
+        updateLectureToPublic(lecture3.id(),accessToken);
 
         List<LectureListResponse> list = RestAssured
                 .given().log().all()
@@ -504,21 +697,33 @@ public class LectureTest {
 
     @Test
     void 강의페이지() throws InterruptedException {
-        LectureResponse lecture1 = createLecture("자바 배우기", "자바, Spring을 통한 웹 개발 강의입니다.", 50000, Category.Math, teacher.getId());
+        AccessToken accessToken = RestAssured
+                .given().log().all()
+                .contentType(ContentType.JSON)
+                .body(new LoginRequest(
+                        "admin1234",
+                        "abcDEF123!"))
+                .when()
+                .post("/admins/login")
+                .then().log().all()
+                .statusCode(200)
+                .extract()
+                .as(AccessToken.class);
+        LectureResponse lecture1 = createLecture("자바 배우기", "자바, Spring을 통한 웹 개발 강의입니다.", 50000, Category.Math, teacher.getId(),accessToken);
         Thread.sleep(1);
-        LectureResponse lecture2 = createLecture("자바 응용하기", "자바, Spring을 통한 웹 개발 실습강의입니다.", 50000, Category.Math, teacher.getId());
+        LectureResponse lecture2 = createLecture("자바 응용하기", "자바, Spring을 통한 웹 개발 실습강의입니다.", 50000, Category.Math, teacher.getId(),accessToken);
         Thread.sleep(1);
-        LectureResponse lecture3 = createLecture("과학 배우기", "과학 강의입니다.", 50000, Category.Science, teacher.getId());
+        LectureResponse lecture3 = createLecture("과학 배우기", "과학 강의입니다.", 50000, Category.Science, teacher.getId(),accessToken);
         Thread.sleep(1);
-        LectureResponse lecture4 = createLecture("파이썬 기초", "파이썬을 통한 프로그래밍 기초 강의입니다.", 40000, Category.English,teacher.getId());
+        LectureResponse lecture4 = createLecture("파이썬 기초", "파이썬을 통한 프로그래밍 기초 강의입니다.", 40000, Category.English,teacher.getId(),accessToken);
         Thread.sleep(1);
-        LectureResponse lecture5 = createLecture("AI 응용", "AI 및 머신러닝 강의입니다.", 60000, Category.Math, teacher.getId());
+        LectureResponse lecture5 = createLecture("AI 응용", "AI 및 머신러닝 강의입니다.", 60000, Category.Math, teacher.getId(),accessToken);
 
-        updateLectureToPublic(lecture1.id());
-        updateLectureToPublic(lecture2.id());
-        updateLectureToPublic(lecture3.id());
-        updateLectureToPublic(lecture4.id());
-        updateLectureToPublic(lecture5.id());
+        updateLectureToPublic(lecture1.id(),accessToken);
+        updateLectureToPublic(lecture2.id(),accessToken);
+        updateLectureToPublic(lecture3.id(),accessToken);
+        updateLectureToPublic(lecture4.id(),accessToken);
+        updateLectureToPublic(lecture5.id(),accessToken);
         int page = 1;
         int size = 2;
 
@@ -569,7 +774,5 @@ public class LectureTest {
 
         assertThat(list3.size()).isEqualTo(1);
         assertThat(list3.get(0).title()).isEqualTo("자바 배우기");
-
-
     }
 }
